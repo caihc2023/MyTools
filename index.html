@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>幼儿园文档生成系统</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        .main-container {
+            display: flex;
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .left-container {
+            flex: 1;
+            padding: 20px;
+            background-color: #fffde7;
+            border-right: 1px solid #e0e0e0;
+        }
+        .container {
+            flex: 3;
+            padding: 20px;
+        }
+        h1, h2 {
+            text-align: center;
+            color: #333;
+        }
+        .file-input {
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+        }
+        .file-input label {
+            flex: 1;
+            margin-right: 10px;
+        }
+        .file-input input[type="file"] {
+            flex: 2;
+        }
+        #generateBtn {
+            display: block;
+            margin: 20px auto;
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        #generateBtn:hover {
+            background-color: #45a049;
+        }
+        .status {
+            color: #4CAF50;
+            margin-left: 10px;
+        }
+        #previewContainer {
+            max-height: 400px;
+            overflow-y: auto;
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        #previewTable {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        #previewTable th, #previewTable td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        #previewTable th {
+            background-color: #f2f2f2;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        #previewTable tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        #previewTable tr:hover {
+            background-color: #f5f5f5;
+            cursor: pointer;
+        }
+        #previewTable tr.selected {
+            background-color: #e0f7fa;
+        }
+        #previewTable tr.selected td:first-child::before {
+            content: "✓ ";
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        .instructions {
+            margin-bottom: 20px;
+        }
+        .instructions h3 {
+            margin-top: 0;
+        }
+        .instructions ol {
+            padding-left: 20px;
+        }
+        .tooltip {
+            position: absolute;
+            background-color: #333;
+            color: #fff;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            z-index: 100;
+        }
+        #previewOutput {
+            margin-top: 0px;
+        }
+        #previewOutputContainer {
+            height: 400px;
+            overflow: hidden;
+        }
+        #fullscreenBtn {
+            display: none;
+            margin: 10px auto;
+            padding: 5px 10px;
+            font-size: 14px;
+            background-color: #607D8B;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        #fullscreenBtn:hover {
+            background-color: #455A64;
+        }
+        .fullscreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 100;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .fullscreen-header {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            padding: 10px 20px;
+            background-color: #f0f0f0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .fullscreen-header button {
+            margin-left: 10px;
+            padding: 8px 15px;
+            font-size: 14px;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        #fullscreenUpdateBtn {
+            background-color: #4CAF50;
+        }
+        #fullscreenUpdateBtn:hover {
+            background-color: #45a049;
+        }
+        #fullscreenDownloadBtn {
+            background-color: #2196F3;
+        }
+        #fullscreenDownloadBtn:hover {
+            background-color: #1976D2;
+        }
+        #exitFullscreenBtn {
+            background-color: #f44336;
+        }
+        #exitFullscreenBtn:hover {
+            background-color: #d32f2f;
+        }
+        .fullscreen #previewOutputContainer {
+            flex-grow: 1;
+            width: 100%;
+            height: calc(100vh - 58px); /* 减去header的高度 */
+            overflow: auto;
+        }
+        /* 添加新样式以在全屏模式下隐藏body滚动条 */
+        body.fullscreen-active {
+            overflow: hidden;
+        }
+        #downloadBtn {
+            display: none;
+            margin: 20px auto;
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        #downloadBtn:hover {
+            background-color: #1976D2;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <div class="left-container">
+            <div class="instructions">
+                <h3>使用说明：</h3>
+                <ol>
+                    <li><strong>上传花名册Excel文件：</strong>
+                        <ul>
+                            <li>点击"选择文件"按钮，选择包含学生信息的Excel文件。</li>
+                            <li>这个文件通常包含学生的姓名、年龄等信息。</li>
+                            <li>上传成功后，您会看到"文件已上传"的提示。</li>
+                        </ul>
+                    </li>
+                    <li><strong>上传数据模板Excel文件：</strong>
+                        <ul>
+                            <li>点击"选择文件"按钮，选择您希望填充数据的模板Excel文件。</li>
+                            <li>这个模板文件决定了最终生成文档的格式。</li>
+                            <li>上传成功后，您会看到"文件已上传"的提示。</li>
+                        </ul>
+                    </li>
+                    <li><strong>选择标题行：</strong>
+                        <ul>
+                            <li>上传花名册后，您会在页面中看到一个预览表格。</li>
+                            <li>在这个表格中，点击包含"姓名"、"年龄"等信息的那一行。</li>
+                            <li>被选中的行会变色，并显示一个"已选择为标题行"的提示。</li>
+                        </ul>
+                    </li>
+                    <li><strong>生成预览：</strong>
+                        <ul>
+                            <li>完成上述步骤后，点击"生成预览"按钮。</li>
+                            <li>系统会根据您选择的标题行和上传的模板生成预览数据。</li>
+                            <li>生成后，您可以直接在预览界面中编辑数据。</li>
+                        </ul>
+                    </li>
+                    <li><strong>编辑预览数据（如需）：</strong>
+                        <ul>
+                            <li>在预览界面中，双击任何单元格即可修改其内容。</li>
+                            <li>您可以使用右键菜单进行更多操作，如插入/删除行列等。</li>
+                        </ul>
+                    </li>
+                    <li><strong>全屏模式（可选）：</strong>
+                        <ul>
+                            <li>如果需要更大的编辑空间，可以点击"全屏模式"按钮。</li>
+                            <li>在全屏模式下，您可以更方便地查看和编辑数据。</li>
+                            <li>点击"退出全屏"按钮可以返回正常视图。</li>
+                        </ul>
+                    </li>
+                    <li><strong>下载生成的文档：</strong>
+                        <ul>
+                            <li>确认数据无误后，点击"下载文档"按钮。</li>
+                            <li>系统会生成一个新的Excel文件，包含您编辑过的所有数据。</li>
+                            <li>文件会自动下载到您的计算机上，文件名包含当前日期和时间。</li>
+                        </ul>
+                    </li>
+                </ol>
+                <p><strong>注意：</strong>请确保您的浏览器允许弹出窗口和文件下载，以便顺利完成文档生成和下载过程。如果遇到任何问题，请刷新页面并重试。</p>
+            </div>
+        </div>
+        <div class="container">
+            <h1>幼儿园文档生成系统</h1>
+            <div class="file-input">
+                <label for="rosterFile">上传花名册Excel文件：</label>
+                <input type="file" id="rosterFile" accept=".xls,.xlsx,.ods">
+                <span id="rosterStatus" class="status"></span>
+            </div>
+            <div class="file-input">
+                <label for="templateFile">上传数据模板Excel文件：</label>
+                <input type="file" id="templateFile" accept=".xls,.xlsx,.ods">
+                <span id="templateStatus" class="status"></span>
+            </div>
+            <h2>花名册预览（点击选择标题行）</h2>
+            <div id="previewContainer">
+                <table id="previewTable"></table>
+            </div>
+            <div id="previewOutput" style="display: none;">
+                <div id="fullscreen-header">
+                <h2>生成文档预览</h2>
+                <button id="fullscreenBtn">全屏模式</button>
+            </div>
+                <div id="previewOutputContainer"></div>
+            </div>
+            <button id="generateBtn">生成预览</button>
+            <button id="downloadBtn">下载文档</button>
+        </div>
+    </div>
+
+    <script>
+        let rosterWorkbook, templateWorkbook, rosterData, selectedHeaderRow = -1;
+        let outputData;
+        let hot; // Handsontable 实例
+
+        document.getElementById('rosterFile').addEventListener('change', function(e) {
+            handleFile(e, 'rosterStatus', function(workbook) {
+                rosterWorkbook = workbook;
+                previewRoster(workbook);
+            });
+        });
+        document.getElementById('templateFile').addEventListener('change', function(e) {
+            handleFile(e, 'templateStatus', function(workbook) {
+                templateWorkbook = workbook;
+            });
+        });
+        document.getElementById('generateBtn').addEventListener('click', generateDocument);
+
+        function handleFile(e, statusId, callback) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, {type: 'array'});
+                callback(workbook);
+                document.getElementById(statusId).textContent = '文件已上传';
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function previewRoster(workbook) {
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            rosterData = XLSX.utils.sheet_to_json(sheet, {header: 1});
+            
+            const table = document.getElementById('previewTable');
+            table.innerHTML = '';
+            
+            rosterData.forEach((row, index) => {
+                const tr = document.createElement('tr');
+                tr.addEventListener('click', () => selectHeaderRow(index));
+                row.forEach(cell => {
+                    const td = document.createElement('td');
+                    td.textContent = cell;
+                    tr.appendChild(td);
+                });
+                table.appendChild(tr);
+            });
+        }
+
+        function selectHeaderRow(index) {
+            const rows = document.querySelectorAll('#previewTable tr');
+            rows.forEach(row => row.classList.remove('selected'));
+            rows[index].classList.add('selected');
+            selectedHeaderRow = index;
+
+            // 移除旧的提示
+            const oldTooltip = document.querySelector('.tooltip');
+            if (oldTooltip) oldTooltip.remove();
+
+            // 添加新的提示
+            const tooltip = document.createElement('div');
+            tooltip.className = 'tooltip';
+            tooltip.textContent = '已选择为标题行';
+            document.body.appendChild(tooltip);
+
+            const selectedRow = rows[index];
+            const rect = selectedRow.getBoundingClientRect();
+            tooltip.style.top = `${rect.top + window.scrollY - 30}px`;
+            tooltip.style.left = `${rect.left + window.scrollX}px`;
+
+            // 3秒后移除提示
+            setTimeout(() => tooltip.remove(), 3000);
+        }
+
+        function generateDocument() {
+            if (!rosterWorkbook || !templateWorkbook) {
+                alert('请先上传花名册和数据模板文件');
+                return;
+            }
+
+            if (selectedHeaderRow === -1) {
+                alert('请选择标题行');
+                return;
+            }
+
+            const templateSheet = templateWorkbook.Sheets[templateWorkbook.SheetNames[0]];
+            const templateData = XLSX.utils.sheet_to_json(templateSheet, {header: 1});
+            const templateHeaders = templateData[0];
+
+            const rosterHeaders = rosterData[selectedHeaderRow];
+            outputData = [templateHeaders];
+
+            for (let i = selectedHeaderRow + 1; i < rosterData.length; i++) {
+                const rosterRow = rosterData[i];
+                const newRow = templateHeaders.map(header => {
+                    const rosterIndex = rosterHeaders.indexOf(header);
+                    return rosterIndex !== -1 ? rosterRow[rosterIndex] : '';
+                });
+                outputData.push(newRow);
+            }
+
+            previewOutput();
+        }
+
+        function previewOutput() {
+            const previewOutput = document.getElementById('previewOutput');
+            const previewOutputContainer = document.getElementById('previewOutputContainer');
+
+            if (hot) {
+                hot.destroy();
+            }
+
+            const zhCN = {
+                language: 'zh-CN',
+                languagePackKey: 'zh-CN',
+                contextMenu: {
+                    items: {
+                        row_above: '在上方插入行',
+                        row_below: '在下方插入行',
+                        col_left: '在左侧插入列',
+                        col_right: '在右侧插入列',
+                        remove_row: '删除行',
+                        remove_col: '删除列',
+                        copy: '复制',
+                        cut: '剪切',
+                        undo: '撤销',
+                        redo: '重做',
+                        make_read_only: '只读',
+                        alignment: '对齐',
+                        clear_column: '清空列',
+                        borders: '边框'
+                    }
+                },
+                dropdownMenu: {
+                    insertLeftColumn: '在左侧插入列',
+                    insertRightColumn: '在右侧插入列',
+                    removeColumn: '删除列',
+                    clearColumn: '清空列',
+                    alignement: '对齐',
+                    fixedColumnLeft: '固定列到左侧',
+                    fixedColumnRight: '固定列到右侧',
+                    unfixColumn: '取消固定列'
+                },
+                filters: {
+                    conditions: {
+                        none: '无',
+                        empty: '为空',
+                        not_empty: '不为空',
+                        equal: '等于',
+                        not_equal: '不等于',
+                        begins_with: '开头是',
+                        ends_with: '结尾是',
+                        contains: '包含',
+                        not_contains: '不包含',
+                        greater_than: '大于',
+                        greater_than_or_equal: '大于或等于',
+                        less_than: '小于',
+                        less_than_or_equal: '小于或等于',
+                        between: '介于',
+                        not_between: '不介于'
+                    },
+                    buttons: {
+                        ok: '确定',
+                        cancel: '取消'
+                    }
+                }
+            };
+
+            hot = new Handsontable(previewOutputContainer, {
+                data: outputData,
+                rowHeaders: true,
+                colHeaders: true,
+                contextMenu: {
+                    items: {
+                        'row_above': {name: '在上方插入行'},
+                        'row_below': {name: '在下方插入行'},
+                        'col_left': {name: '在左侧插入列'},
+                        'col_right': {name: '在右侧插入列'},
+                        'remove_row': {name: '删除行'},
+                        'remove_col': {name: '删除列'},
+                        'undo': {name: '撤销'},
+                        'redo': {name: '重做'},
+                        'make_read_only': {name: '只读'},
+                        'alignment': {name: '对齐'},
+                        'copy': {name: '复制'},
+                        'cut': {name: '剪切'}
+                    }
+                },
+                manualRowMove: true,
+                manualColumnMove: true,
+                filters: true,
+                dropdownMenu: {
+                    items: {
+                        'filter_by_condition': {name: '按条件筛选'},
+                        'filter_operators': {name: '筛选操作'},
+                        'filter_by_condition2': {name: '按条件筛选2'},
+                        'filter_by_value': {name: '按值筛选'},
+                        'clear_column': {name: '清除筛选'}
+                    }
+                },
+                language: zhCN,
+                licenseKey: 'non-commercial-and-evaluation',
+                stretchH: 'all',
+                autoRowSize: true,
+                autoColumnSize: true,
+            });
+
+            previewOutput.style.display = 'block';
+            document.getElementById('generateBtn').textContent = '更新预览';
+            document.getElementById('downloadBtn').style.display = 'block';
+            document.getElementById('fullscreenBtn').style.display = 'block';
+        }
+
+        document.getElementById('fullscreenBtn').addEventListener('click', function() {
+            const previewOutput = document.getElementById('previewOutput');
+            previewOutput.classList.toggle('fullscreen');
+            document.body.classList.toggle('fullscreen-active');
+            
+            if (previewOutput.classList.contains('fullscreen')) {
+                document.getElementById('fullscreen-header').style.display='none';
+                // 创建全屏模式的头部
+                const header = document.createElement('div');
+                header.className = 'fullscreen-header';
+                header.innerHTML = `
+                    <button id="fullscreenUpdateBtn">更新预览</button>
+                    <button id="fullscreenDownloadBtn">下载文档</button>
+                    <button id="exitFullscreenBtn">退出全屏</button>
+                `;
+                previewOutput.insertBefore(header, previewOutput.firstChild);
+
+                // 添加事件监听器
+                document.getElementById('fullscreenUpdateBtn').addEventListener('click', generateDocument);
+                document.getElementById('fullscreenDownloadBtn').addEventListener('click', downloadDocument);
+                document.getElementById('exitFullscreenBtn').addEventListener('click', () => this.click());
+            } else {
+                document.getElementById('fullscreen-header').style.display='block';
+                // 移除全屏模式的头部
+                previewOutput.removeChild(previewOutput.querySelector('.fullscreen-header'));
+            }
+
+            setTimeout(() => {
+                hot.render();
+                hot.refreshDimensions();
+            }, 0);
+        });
+
+        function downloadDocument() {
+            const outputWorkbook = XLSX.utils.book_new();
+            const outputSheet = XLSX.utils.aoa_to_sheet(hot.getData());
+            XLSX.utils.book_append_sheet(outputWorkbook, outputSheet, '生成数据');
+
+            const templateFileName = document.getElementById('templateFile').files[0].name;
+            const fileNameWithoutExtension = templateFileName.split('.').slice(0, -1).join('.');
+            const now = new Date();
+            const dateString = now.getFullYear() + '-' + 
+                               String(now.getMonth() + 1).padStart(2, '0') + '-' + 
+                               String(now.getDate()).padStart(2, '0') + ' ' + 
+                               String(now.getHours()).padStart(2, '0') + '-' + 
+                               String(now.getMinutes()).padStart(2, '0');
+            const newFileName = `${fileNameWithoutExtension}_${dateString}.xlsx`;
+
+            XLSX.writeFile(outputWorkbook, newFileName);
+        }
+
+        document.getElementById('downloadBtn').addEventListener('click', downloadDocument);
+    </script>
+</body>
+</html>
